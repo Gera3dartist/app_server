@@ -1,0 +1,6 @@
+-sname 'app_server'
+
+-setcookie 'app_server_cookie'
+
++K true
++A30
