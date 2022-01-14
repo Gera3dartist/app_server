@@ -1,13 +1,17 @@
 -module(chat_backend).
--compile(export_all).
-% -export([
-%     subscribe/2,
-%     list_topics/0,
-%     loop/1,
-%     start_link/0
-%     ]).
+% -compile(export_all).
+-export([
+    subscribe/2,
+    list_topics/0,
+    loop/1,
+    start_link/0,
+    init/0,
+    online/2,
+	offline/1,
+    publish/2
+    ]).
 
--record(state, {topics}).
+-record(state, {topics, online}).
 
 subscribe(User, Topic) ->
 	% Ref = erlang:monitor(process, whereis(?MODULE)),
@@ -32,6 +36,40 @@ list_topics() ->
 		{error, timeout}
 	end.
 
+online(User, Socket) ->
+    ?MODULE ! {self(), {online, User, Socket}},
+    receive
+		ok -> 
+		    ok;
+		{'DOWN', process, _Pid, Reason} -> 
+			{error, Reason}
+	after 5000 ->
+		{error, timeout}
+	end.
+
+offline(User) ->
+    ?MODULE ! {self(), {offline, User}},
+    receive
+		ok -> 
+		    ok;
+		{'DOWN', process, _Pid, Reason} -> 
+			{error, Reason}
+	after 5000 ->
+		{error, timeout}
+	end.
+
+
+publish(Topic, Json) ->
+    ?MODULE ! {self(), {publish, Topic, Json}},
+    receive
+		ok -> 
+		    ok;
+		{'DOWN', process, _Pid, Reason} -> 
+			{error, Reason}
+	after 5000 ->
+		{error, timeout}
+	end.
+
 
 loop(S=#state{}) ->
 	receive
@@ -43,18 +81,48 @@ loop(S=#state{}) ->
             loop(S);
 
 		{Pid, {subscribe, UserId, Topic}} ->
-            NewTopics = orddict:update(
-                Topic, fun (Old) -> Old ++ [UserId] end, [UserId], S#state.topics),
-			Pid ! ok,
-			loop(S#state{topics=NewTopics});
-		
-		{Pid, {online_users, Topic}} ->
-			%% start event
-            TopicUsers = orddict:update(
-                Topic, fun (Old) -> Old ++ [{"some_user", Pid}] end, [{"some_user", Pid}], S#state.topics),
-            % TopicUsers = orddict:find(Topic, S#state.topics),
-            Pid ! {ok, TopicUsers},
-            loop(S);
+            % circuit breaker - if user is already subscribed - do nothing
+            case orddict:find(Topic, S#state.topics) of
+                {ok, Users} ->
+                    case lists:member(UserId, Users) of
+                        true ->
+                            Pid ! ok,
+                            loop(S);
+                        false ->
+                            NewTopics = do_subscribe(UserId, Topic, S#state.topics),
+                            Pid ! ok,
+                            loop(S#state{topics=NewTopics})
+                    end;
+                error ->
+                    NewTopics = do_subscribe(UserId, Topic, S#state.topics),
+                    Pid ! ok,
+                    loop(S#state{topics=NewTopics})
+            end;
+            
+
+		{Pid, {online, User, Socket}} ->
+			%update online users
+            OnlineUsers = orddict:store(User, Socket, S#state.online),
+            Pid ! ok,
+            loop(S#state{online=OnlineUsers});
+		{Pid, {offline, User}} ->
+			%update online users
+            OnlineUsers = orddict:erase(User, S#state.online),
+            Pid ! ok,
+            loop(S#state{online=OnlineUsers});
+        {Pid, {publish, Topic, Body}} ->
+            case orddict:find(Topic, S#state.topics) of 
+                {ok, Subscribers} ->
+                    OnlineUsers = [orddict:fetch(U, S#state.online) || U <- Subscribers, orddict:is_key(U,  S#state.online)],
+                    io:format(">>>OnlineUsers: ~p~n", [OnlineUsers]),
+                    send_to_clients(Body, OnlineUsers),
+                    Pid ! ok,
+					loop(S);
+                {ok, error} ->
+                    io:format("Topic not found: ~p~n", [Topic]),
+                    loop(S)
+            end;
+            
 
 		% {'DOWN', Ref, process, _Pid, _Reason} -> 
 		% 	loop(S#state{topics=orddict:erase(Ref, S#state.topics)});
@@ -69,12 +137,11 @@ loop(S=#state{}) ->
 
 
 send_to_clients(Msg, Clients) ->
-	orddict:map(fun(_Ref, ClientPid) ->  ClientPid ! Msg end, Clients).
-
+	lists:map(fun(ClientPid) ->  ClientPid ! Msg end, Clients).
 
 init() -> 
     io:format(">>> Initiating chat process : ~n"),
-	loop(#state{topics=orddict:new()}).
+	loop(#state{topics=orddict:new(), online=orddict:new()}).
 
 start() ->
 	register(?MODULE, Pid=spawn(?MODULE, init, [])),
@@ -86,4 +153,11 @@ start_link() ->
 
 terminate() ->
 	?MODULE ! shutdown.
+
+
+
+do_subscribe(UserId, Topic, Topics) ->
+    io:format(">>> CONTINUE SUBSCRIBE~n"),
+
+    orddict:update(Topic, fun (Old) -> Old ++ [UserId] end, [UserId], Topics).
 

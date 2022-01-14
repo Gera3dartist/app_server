@@ -11,11 +11,11 @@ routes(_Environment) ->
       security => false,
       routes => [
                  {"/", { app_server_chat_controller, index}, #{methods => [get]}},
-                 {"/topics", {app_server_chat_controller_simple, topics_list}, #{methods => [get]}},
-                 {"/topic/:topic", {app_server_chat_controller_simple, topic}, #{methods => [put]}},
+                 {"/topics", {app_server_chat_controller, topics_list}, #{methods => [get]}},
+                 {"/topic/:topic", {app_server_chat_controller, topic}, #{methods => [put]}},
                  {"/users", { app_server_users_controller, get_users}, #{methods => [get]}},
                  {"/users/:userid", { app_server_users_controller, get_single_user}, #{methods => [get]}},
-                 {"/user/:userid/subscribe", {app_server_chat_controller_simple, subscribe}, #{methods => [post]} },
+                 {"/user/:userid/subscribe", {app_server_chat_controller, subscribe}, #{methods => [post]} },
 	               {"/user/:userid/ws", app_server_ws, #{protocol => ws, idle_timeout => 30000}},
 
                  {"/assets/[...]", "assets"}

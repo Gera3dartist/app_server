@@ -2,23 +2,39 @@
 -export([
          index/1,
 	     topic/1,
-	     subscribe/1
+	     subscribe/1,
+         topics_list/1
         ]).
+
 
 index(_NovaReq) ->
     {ok, []}.
 
+topics_list(_NovaReq) ->
+    ChatTopics = chat_backend:list_topics(),
+
+    TopicList = case orddict:size(ChatTopics) > 0 of
+        true -> [#{ 
+            topic => Topic, 
+            subscribed =>  [#{ user_id => U } || U <-Subsribed]
+            } || {Topic, Subsribed} <- ChatTopics];
+        false -> 
+            []
+        end,
+    {json, 200, #{}, TopicList}.
+
+
 topic(#{req := #{method := <<"PUT">>,
                  bindings := #{topic := _Topic}} = Req}) ->
-    io:format("~p~n", [Req]),
+    io:format("~p~n", [_Topic]),
     {json, <<"Topic!">>}.
 
+
 subscribe(#{method := <<"POST">>,
-            bindings := #{<<"user">> := User}} = Req) ->
-    logger:warning(">>USER: ~p", [User]),
+            bindings := #{<<"userid">> := User}} = Req) ->
     {ok, Data, _} = cowboy_req:read_body(Req),
     #{<<"topic">> := Topic} = json:decode(Data, [maps]),
-    nova_pubsub:subscribe(User, Topic),
+    chat_backend:subscribe(User, Topic),
     {json, <<"Subscribed!">>};
 subscribe(Req) ->
     io:format("~p", [Req]),
