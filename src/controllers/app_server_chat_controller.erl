@@ -21,7 +21,7 @@ topics_list(_NovaReq) ->
         false -> 
             []
         end,
-    {json, 200, #{}, TopicList}.
+    {json, 200, #{<<"Access-Control-Allow-Origin">> => <<"http://localhost:8000">>}, TopicList}.
 
 
 topic(#{req := #{method := <<"PUT">>,
@@ -35,7 +35,7 @@ subscribe(#{method := <<"POST">>,
     {ok, Data, _} = cowboy_req:read_body(Req),
     #{<<"topic">> := Topic} = json:decode(Data, [maps]),
     chat_backend:subscribe(User, Topic),
-    {json, <<"Subscribed!">>};
+    {json, #{<<"status">> => <<"ok">>}};
 subscribe(Req) ->
     io:format("~p", [Req]),
-    {json, <<"default">>}.
+    {json, #{<<"status">> => <<"default">>}}.

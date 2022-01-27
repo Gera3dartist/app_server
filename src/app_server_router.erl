@@ -19,6 +19,7 @@ routes(_Environment) ->
 	               {"/user/:userid/ws", app_server_ws, #{protocol => ws, idle_timeout => 30000}},
 
                  {"/assets/[...]", "assets"}
+
                 ]
 
       }
