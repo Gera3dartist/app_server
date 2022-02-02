@@ -15,7 +15,7 @@ topics_list(_NovaReq) ->
 
     TopicList = case orddict:size(ChatTopics) > 0 of
         true -> [#{ 
-            topic => Topic, 
+            name => Topic, 
             subscribed =>  [#{ user_id => U } || U <-Subsribed]
             } || {Topic, Subsribed} <- ChatTopics];
         false -> 

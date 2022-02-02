@@ -18,6 +18,7 @@ websocket_init(State) ->
     {ok, State}.
 
 websocket_handle({text, Message}, State) ->
+    
     logger:warning(">>websocket_handle chat"),
     Decode = json:decode(Message, [maps]),
     #{<<"userid">> := User} = State,

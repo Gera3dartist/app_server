@@ -15,6 +15,7 @@ routes(_Environment) ->
                  {"/topic/:topic", {app_server_chat_controller, topic}, #{methods => [put]}},
                  {"/users", { app_server_users_controller, get_users}, #{methods => [get]}},
                  {"/users/:userid", { app_server_users_controller, get_single_user}, #{methods => [get]}},
+                 {"/users/:userid/topics", { app_server_users_controller, get_user_topics}, #{methods => [get]}},
                  {"/user/:userid/subscribe", {app_server_chat_controller, subscribe}, #{methods => [post]} },
 	               {"/user/:userid/ws", app_server_ws, #{protocol => ws, idle_timeout => 30000}},
 

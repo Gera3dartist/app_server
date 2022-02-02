@@ -8,7 +8,8 @@
     init/0,
     online/2,
 	offline/1,
-    publish/2
+    publish/2,
+	user_topics/1
     ]).
 
 -record(state, {topics, online}).
@@ -25,11 +26,22 @@ subscribe(User, Topic) ->
 		{error, timeout}
 	end.
 
+user_topics(UserId) ->
+	?MODULE ! {self(), {user_topics, UserId}},
+	receive
+		{ok, Topics} ->
+            Topics;
+		{'DOWN', process, _Pid, Reason} -> 
+			{error, Reason}
+	after 5000 ->
+		{error, timeout}
+	end.
+
 list_topics() -> 
     ?MODULE ! {self(), show_topics},
     receive
-		{ok, TopicUsers} ->
-			TopicUsers;
+		{ok, Topics} ->
+			Topics;
 		{'DOWN', process, _Pid, Reason} -> 
 			{error, Reason}
 	after 5000 ->
@@ -98,7 +110,10 @@ loop(S=#state{}) ->
                     Pid ! ok,
                     loop(S#state{topics=NewTopics})
             end;
-            
+		{Pid, {user_topics, UserId}} ->
+			UserTopics = orddict:filter(fun (_, UserList) -> filter_topics_by_user(UserId, UserList) end, S#state.topics),
+			Pid ! {ok, orddict:fetch_keys(UserTopics)},
+			loop(S);
 
 		{Pid, {online, User, Socket}} ->
 			%update online users
@@ -123,9 +138,6 @@ loop(S=#state{}) ->
                     loop(S)
             end;
             
-
-		% {'DOWN', Ref, process, _Pid, _Reason} -> 
-		% 	loop(S#state{topics=orddict:erase(Ref, S#state.topics)});
 		shutdown -> 
 			exit(shutdown);
 		code_change ->
@@ -157,7 +169,14 @@ terminate() ->
 
 
 do_subscribe(UserId, Topic, Topics) ->
-    io:format(">>> CONTINUE SUBSCRIBE~n"),
 
     orddict:update(Topic, fun (Old) -> Old ++ [UserId] end, [UserId], Topics).
 
+
+filter_topics_by_user(UserId, UserList) ->
+	case lists:member(UserId, UserList) of 
+		true -> 
+			true;
+		false -> 
+			false
+	end.
